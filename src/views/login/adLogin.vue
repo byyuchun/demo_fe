@@ -38,7 +38,7 @@ export default defineComponent({
         Modal.success({
             title: '登录成功',
         });
-        router.push({path:'/',query:{key:new Date().getTime()}});
+        router.push({path:'/admin',query:{key:new Date().getTime()}});
       }).catch((err)=>{
         notification['error']({
           message: '数据验证错误',

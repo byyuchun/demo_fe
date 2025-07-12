@@ -10,7 +10,7 @@
             {{ adminInfo.name }}
           </span>
         </template>
-        <a-menu-item key="5" @click="$router.replace({name:'class'})">班级信息</a-menu-item>
+        <a-menu-item key="5" @click="$router.replace({name:'admin-class'})">班级信息</a-menu-item>
         <a-menu-item key="1" @click="$router.replace({name:'manage'})">学生信息</a-menu-item>
         <a-menu-item key="2" @click="$router.replace({name:'forget'})">重置密码</a-menu-item>
       </a-sub-menu>

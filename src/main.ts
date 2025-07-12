@@ -8,4 +8,9 @@ import VueAxios from 'vue-axios'
 import STable from '@surely-vue/table';
 import 'ant-design-vue/dist/antd.css'
 
+// 设置axios全局默认配置
+axios.defaults.baseURL = 'http://localhost:6789'
+axios.defaults.timeout = 10000
+axios.defaults.headers.common['Content-Type'] = 'application/json'
+
 createApp(App).use(Antd).use(STable).use(store).use(router).use(VueAxios,axios).mount('#app')

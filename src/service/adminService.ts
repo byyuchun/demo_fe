@@ -2,57 +2,57 @@ import request from '@/utils/request';
 
 // 用户注册
 const register = ({ email, name, password }:any) => {
-  return request.post('admin/register', { email, name, password });
+  return request.post('/api/admin/register', { email, name, password });
 };
 
 // 用户登录
 const login = ({ email, password }:any) => {
-  return request.post('admin/login', { email, password });
+  return request.post('/api/admin/login', { email, password });
 };
 
 // 获取用户信息
 const info = () => {
-  return request.get('admin/info');
+  return request.get('/api/admin/info');
 };
 
 const update =({id, name, password})=>{
-  return request.put('admin/'+id, {name, password});
+  return request.put('/api/admin/'+id, {name, password});
 };
 
 const remove = ({id}) => {
-  return request.delete('admin/'+id);
+  return request.delete('/api/admin/'+id);
 };
 
 const show = () => {
-  return request.get('admin/show');
+  return request.get('/api/admin/show');
 }
 
 const search = (word) => {
-  return request.get('admin/search', { params: { word } });
+  return request.get('/api/admin/search', { params: { word } });
 }
 
 const msg = () =>{
-  return request.get('message/show');
+  return request.get('/api/message/show');
 }
 
 const removemsg=({sid})=>{
-  return request.delete('message/'+sid);
+  return request.delete('/api/message/'+sid);
 }
 
 const addclass=({Name})=>{
-  return request.post('class/add',{Name});
+  return request.post('/api/class/add',{Name});
 }
 
 const showclass=() => {
-  return request.get('class/show');
+  return request.get('/api/class/show');
 }
 
 const deleteclass=({name})=>{
-  return request.delete('class/'+name);
+  return request.delete('/api/class/'+name);
 }
 
 const updateclass =({name, SchoolName, MajorName})=>{
-  return request.post('class/'+name, {SchoolName, MajorName});
+  return request.post('/api/class/'+name, {SchoolName, MajorName});
 };
 
 export default {
