@@ -14,6 +14,37 @@
       </a-row>
     </div>
 
+    <!-- 搜索区域 -->
+    <a-card class="search-card">
+      <a-row :gutter="16" align="middle">
+        <a-col :span="8">
+          <a-input
+            v-model:value="searchKeyword"
+            placeholder="请输入学生姓名进行搜索"
+            allow-clear
+            @change="handleSearch"
+            @pressEnter="handleSearch"
+          >
+            <template #prefix>
+              <SearchOutlined />
+            </template>
+          </a-input>
+        </a-col>
+        <a-col :span="4">
+          <a-button type="primary" @click="handleSearch">
+            <template #icon><SearchOutlined /></template>
+            搜索
+          </a-button>
+        </a-col>
+        <a-col :span="4">
+          <a-button @click="handleReset">
+            <template #icon><ReloadOutlined /></template>
+            重置
+          </a-button>
+        </a-col>
+      </a-row>
+    </a-card>
+
     <a-card>
       <a-table
         :columns="columns"
@@ -30,8 +61,14 @@
         }"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'enrolledAt'">
-            {{ formatDate(record.enrolledAt) }}
+          <template v-if="column.key === 'class_name'">
+            <a-tag color="blue">{{ record.class_name }} - {{ record.course_name }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'price_per_hour'">
+            ¥{{ record.price_per_hour }}/节
+          </template>
+          <template v-else-if="column.key === 'enrolled_at'">
+            {{ formatDate(record.enrolled_at) }}
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
@@ -58,7 +95,7 @@
 
     <!-- 创建/编辑报名的模态框 -->
     <a-modal
-      v-model:open="modalVisible"
+      v-model:visible="modalVisible"
       :title="modalTitle"
       @ok="handleSubmit"
       @cancel="handleCancel"
@@ -70,9 +107,9 @@
         :rules="rules"
         layout="vertical"
       >
-        <a-form-item label="选择学生" name="studentId">
+        <a-form-item label="选择学生" name="student_id">
           <a-select
-            v-model:value="formData.studentId"
+            v-model:value="formData.student_id"
             placeholder="请选择学生"
             style="width: 100%"
             show-search
@@ -84,21 +121,23 @@
           </a-select>
         </a-form-item>
         
-        <a-form-item label="选择班级课程" name="classCourseId">
+        <a-form-item label="选择教学班" name="class_course_id">
           <a-select
-            v-model:value="formData.classCourseId"
-            placeholder="请选择班级课程"
+            v-model:value="formData.class_course_id"
+            placeholder="请选择教学班"
             style="width: 100%"
+            show-search
+            :filter-option="filterOption"
           >
             <a-select-option v-for="classCourse in classCourses" :key="classCourse.id" :value="classCourse.id">
-              {{ classCourse.className }} - {{ classCourse.courseName }}
+              {{ classCourse.display_name }}
             </a-select-option>
           </a-select>
         </a-form-item>
         
-        <a-form-item label="报名时间" name="enrolledAt">
+        <a-form-item label="报名时间" name="enrolled_at">
           <a-date-picker
-            v-model:value="formData.enrolledAt"
+            v-model:value="formData.enrolled_at"
             placeholder="请选择报名时间"
             style="width: 100%"
           />
@@ -111,18 +150,23 @@
 <script lang="ts">
 import { defineComponent, ref, onMounted, reactive, computed } from 'vue';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons-vue';
 import request from '@/utils/request';
 import moment from 'moment';
+import { toRFC3339, formatDateDisplay } from '@/utils/dateUtils';
+import { studentApi, enrollmentApi } from '@/api/admin';
+import { getTeachingClasses, type TeachingClass } from '@/api/teachingClass';
 
 interface Enrollment {
   id: number;
-  studentId: number;
-  studentName: string;
-  classCourseId: number;
-  className: string;
-  courseName: string;
-  enrolledAt: string;
+  student_id: number;
+  student_name: string;
+  class_course_id: number;
+  class_name: string;
+  course_name: string;
+  semester_name: string;
+  price_per_hour: number;
+  enrolled_at: string;
 }
 
 interface Student {
@@ -134,6 +178,7 @@ interface ClassCourse {
   id: number;
   className: string;
   courseName: string;
+  display_name: string;
 }
 
 export default defineComponent({
@@ -141,6 +186,8 @@ export default defineComponent({
     PlusOutlined,
     EditOutlined,
     DeleteOutlined,
+    SearchOutlined,
+    ReloadOutlined,
   },
   setup() {
     const loading = ref(false);
@@ -148,6 +195,7 @@ export default defineComponent({
     const confirmLoading = ref(false);
     const isEdit = ref(false);
     const formRef = ref();
+    const searchKeyword = ref('');
     
     const enrollments = ref<Enrollment[]>([]);
     const students = ref<Student[]>([]);
@@ -161,32 +209,37 @@ export default defineComponent({
     
     const formData = reactive({
       id: undefined,
-      studentId: undefined,
-      classCourseId: undefined,
-      enrolledAt: null,
+      student_id: undefined,
+      class_course_id: undefined,
+      enrolled_at: null,
     });
     
     // 表格列定义
     const columns = [
       {
         title: '学生姓名',
-        dataIndex: 'studentName',
-        key: 'studentName',
+        dataIndex: 'student_name',
+        key: 'student_name',
       },
       {
-        title: '班级',
-        dataIndex: 'className',
-        key: 'className',
+        title: '教学班',
+        dataIndex: 'class_name',
+        key: 'class_name',
       },
       {
-        title: '课程',
-        dataIndex: 'courseName',
-        key: 'courseName',
+        title: '学期',
+        dataIndex: 'semester_name',
+        key: 'semester_name',
+      },
+      {
+        title: '教学班价格',
+        dataIndex: 'price_per_hour',
+        key: 'price_per_hour',
       },
       {
         title: '报名时间',
-        dataIndex: 'enrolledAt',
-        key: 'enrolledAt',
+        dataIndex: 'enrolled_at',
+        key: 'enrolled_at',
       },
       {
         title: '操作',
@@ -197,13 +250,13 @@ export default defineComponent({
     
     // 表单验证规则
     const rules = {
-      studentId: [
+      student_id: [
         { required: true, message: '请选择学生', trigger: 'change' },
       ],
-      classCourseId: [
-        { required: true, message: '请选择班级课程', trigger: 'change' },
+      class_course_id: [
+        { required: true, message: '请选择教学班', trigger: 'change' },
       ],
-      enrolledAt: [
+      enrolled_at: [
         { required: true, message: '请选择报名时间', trigger: 'change' },
       ],
     };
@@ -216,9 +269,22 @@ export default defineComponent({
       return option.children.toLowerCase().includes(input.toLowerCase());
     };
     
-    // 格式化日期
+    // 格式化日期（用于显示）
     const formatDate = (date: string) => {
-      return moment(date).format('YYYY-MM-DD');
+      return formatDateDisplay(date);
+    };
+    
+    // 搜索处理
+    const handleSearch = () => {
+      pagination.current = 1; // 重置到第一页
+      loadEnrollments();
+    };
+    
+    // 重置搜索
+    const handleReset = () => {
+      searchKeyword.value = '';
+      pagination.current = 1;
+      loadEnrollments();
     };
     
     // 加载数据
@@ -234,14 +300,13 @@ export default defineComponent({
     const loadEnrollments = async () => {
       loading.value = true;
       try {
-        const response = await request.get('/api/h1/enrollment', {
-          params: {
-            page: pagination.current,
-            pageSize: pagination.pageSize,
-          },
-        });
+        const params: any = {};
+        if (searchKeyword.value.trim()) {
+          params.student_name = searchKeyword.value.trim();
+        }
+        const response = await enrollmentApi.getWithDetail(params);
         enrollments.value = response.data.data || [];
-        pagination.total = response.data.total || 0;
+        pagination.total = (response.data.data || []).length;
       } catch (error) {
         message.error('加载报名列表失败');
       } finally {
@@ -252,20 +317,26 @@ export default defineComponent({
     // 加载学生列表
     const loadStudents = async () => {
       try {
-        const response = await request.get('/api/h1/student');
+        const response = await studentApi.getAll();
         students.value = response.data.data || [];
       } catch (error) {
         message.error('加载学生列表失败');
       }
     };
     
-    // 加载班级课程列表
+    // 加载班级课程列表（教学班）
     const loadClassCourses = async () => {
       try {
-        const response = await request.get('/api/h1/class-course');
-        classCourses.value = response.data.data || [];
+        const response = await getTeachingClasses();
+        const teachingClasses = response.data.data || [];
+        classCourses.value = teachingClasses.map((tc: TeachingClass) => ({
+          id: tc.id,
+          className: tc.class_name,
+          courseName: tc.course_name,
+          display_name: tc.display_name,
+        }));
       } catch (error) {
-        message.error('加载班级课程列表失败');
+        message.error('加载教学班列表失败');
       }
     };
     
@@ -277,21 +348,21 @@ export default defineComponent({
     };
     
     // 显示编辑模态框
-    const showEditModal = (record: Enrollment) => {
+    const showEditModal = (record: any) => {
       isEdit.value = true;
       formData.id = record.id;
-      formData.studentId = record.studentId;
-      formData.classCourseId = record.classCourseId;
-      formData.enrolledAt = moment(record.enrolledAt);
+      formData.student_id = record.student_id;
+      formData.class_course_id = record.class_course_id;
+      formData.enrolled_at = moment(record.enrolled_at);
       modalVisible.value = true;
     };
     
     // 重置表单
     const resetForm = () => {
       formData.id = undefined;
-      formData.studentId = undefined;
-      formData.classCourseId = undefined;
-      formData.enrolledAt = null;
+      formData.student_id = undefined;
+      formData.class_course_id = undefined;
+      formData.enrolled_at = null;
       if (formRef.value) {
         formRef.value.clearValidate();
       }
@@ -305,7 +376,7 @@ export default defineComponent({
         
         const requestData = {
           ...formData,
-          enrolledAt: formData.enrolledAt.format('YYYY-MM-DD'),
+          enrolled_at: toRFC3339(formData.enrolled_at, false),
         };
         
         if (isEdit.value) {
@@ -359,6 +430,7 @@ export default defineComponent({
       confirmLoading,
       isEdit,
       formRef,
+      searchKeyword,
       enrollments,
       students,
       classCourses,
@@ -369,6 +441,8 @@ export default defineComponent({
       modalTitle,
       filterOption,
       formatDate,
+      handleSearch,
+      handleReset,
       showCreateModal,
       showEditModal,
       handleSubmit,
@@ -392,5 +466,9 @@ export default defineComponent({
 .page-header h2 {
   margin: 0;
   color: #1890ff;
+}
+
+.search-card {
+  margin-bottom: 20px;
 }
 </style> 

@@ -61,7 +61,7 @@
 
     <!-- 创建/编辑学期的模态框 -->
     <a-modal
-      v-model:open="modalVisible"
+      v-model:visible="modalVisible"
       :title="modalTitle"
       @ok="handleSubmit"
       @cancel="handleCancel"
@@ -103,6 +103,7 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue';
 import { semesterApi } from '@/api/admin';
 import moment from 'moment';
+import { toRFC3339, formatDateDisplay } from '@/utils/dateUtils';
 
 interface Semester {
   id: number;
@@ -178,9 +179,9 @@ export default defineComponent({
     // 模态框标题
     const modalTitle = computed(() => isEdit.value ? '编辑学期' : '添加学期');
     
-    // 格式化日期
+    // 格式化日期（用于显示）
     const formatDate = (date: string) => {
-      return moment(date).format('YYYY-MM-DD');
+      return formatDateDisplay(date);
     };
     
     // 加载学期列表
@@ -233,8 +234,8 @@ export default defineComponent({
         
         const requestData = {
           name: formData.name,
-          start_date: formData.startDate.format('YYYY-MM-DD'),
-          end_date: formData.endDate.format('YYYY-MM-DD'),
+          start_date: toRFC3339(formData.startDate, false),
+          end_date: toRFC3339(formData.endDate, true),
         };
         
         if (isEdit.value) {

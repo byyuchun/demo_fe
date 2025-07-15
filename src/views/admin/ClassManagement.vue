@@ -52,10 +52,6 @@
                 <template #icon><EditOutlined /></template>
                 编辑
               </a-button>
-              <a-button size="small" @click="viewClassCourses(record)">
-                <template #icon><BookOutlined /></template>
-                课程设置
-              </a-button>
               <a-popconfirm
                 title="确定删除这个班级吗？"
                 ok-text="确定"
@@ -75,7 +71,7 @@
 
     <!-- 创建/编辑班级的模态框 -->
     <a-modal
-      v-model:open="modalVisible"
+      v-model:visible="modalVisible"
       :title="modalTitle"
       @ok="handleSubmit"
       @cancel="handleCancel"
@@ -91,9 +87,9 @@
           <a-input v-model:value="formData.name" placeholder="请输入班级名称" />
         </a-form-item>
         
-        <a-form-item label="所属学期" name="semesterId">
+        <a-form-item label="所属学期" name="semester_id">
           <a-select
-            v-model:value="formData.semesterId"
+            v-model:value="formData.semester_id"
             placeholder="请选择学期"
             style="width: 100%"
           >
@@ -105,108 +101,19 @@
       </a-form>
     </a-modal>
 
-    <!-- 班级课程设置模态框 -->
-    <a-modal
-      v-model:open="coursesModalVisible"
-      title="班级课程设置"
-      width="800px"
-      @ok="handleCoursesSubmit"
-      @cancel="handleCoursesCancel"
-      :confirm-loading="coursesConfirmLoading"
-    >
-      <div class="courses-header">
-        <h3>{{ currentClass.name }} - 课程设置</h3>
-        <a-button type="primary" size="small" @click="showAddCourseModal">
-          <template #icon><PlusOutlined /></template>
-          添加课程
-        </a-button>
-      </div>
-      
-      <a-table
-        :columns="courseColumns"
-        :data-source="classCourses"
-        :loading="coursesLoading"
-        row-key="id"
-        :pagination="false"
-        size="small"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'pricePerHour'">
-            ¥{{ record.pricePerHour }}
-          </template>
-          <template v-else-if="column.key === 'action'">
-            <a-space>
-              <a-button size="small" @click="editClassCourse(record)">
-                <template #icon><EditOutlined /></template>
-                编辑
-              </a-button>
-              <a-popconfirm
-                title="确定删除这个课程吗？"
-                ok-text="确定"
-                cancel-text="取消"
-                @confirm="deleteClassCourse(record.id)"
-              >
-                <a-button size="small" danger>
-                  <template #icon><DeleteOutlined /></template>
-                  删除
-                </a-button>
-              </a-popconfirm>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
-    </a-modal>
-
-    <!-- 添加课程到班级的模态框 -->
-    <a-modal
-      v-model:open="addCourseModalVisible"
-      title="添加课程"
-      @ok="handleAddCourse"
-      @cancel="handleAddCourseCancel"
-      :confirm-loading="addCourseConfirmLoading"
-    >
-      <a-form
-        ref="addCourseFormRef"
-        :model="addCourseFormData"
-        :rules="addCourseRules"
-        layout="vertical"
-      >
-        <a-form-item label="选择课程" name="courseId">
-          <a-select
-            v-model:value="addCourseFormData.courseId"
-            placeholder="请选择课程"
-            style="width: 100%"
-          >
-            <a-select-option v-for="course in availableCourses" :key="course.id" :value="course.id">
-              {{ course.name }}
-            </a-select-option>
-          </a-select>
-        </a-form-item>
-        
-        <a-form-item label="每小时价格" name="pricePerHour">
-          <a-input-number
-            v-model:value="addCourseFormData.pricePerHour"
-            :min="0"
-            :precision="2"
-            placeholder="请输入每小时价格"
-            style="width: 100%"
-          />
-        </a-form-item>
-      </a-form>
-    </a-modal>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, reactive, computed } from 'vue';
 import { message } from 'ant-design-vue';
-import { PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined } from '@ant-design/icons-vue';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue';
 import request from '@/utils/request';
 
 interface Class {
   id: number;
   name: string;
-  semesterId: number;
+  semester_id: number;
   semesterName: string;
 }
 
@@ -215,44 +122,22 @@ interface Semester {
   name: string;
 }
 
-interface Course {
-  id: number;
-  name: string;
-}
-
-interface ClassCourse {
-  id: number;
-  courseId: number;
-  courseName: string;
-  pricePerHour: number;
-}
-
 export default defineComponent({
   components: {
     PlusOutlined,
     EditOutlined,
     DeleteOutlined,
-    BookOutlined,
   },
   setup() {
     const loading = ref(false);
     const modalVisible = ref(false);
-    const coursesModalVisible = ref(false);
-    const addCourseModalVisible = ref(false);
     const confirmLoading = ref(false);
-    const coursesConfirmLoading = ref(false);
-    const addCourseConfirmLoading = ref(false);
-    const coursesLoading = ref(false);
     const isEdit = ref(false);
     const formRef = ref();
-    const addCourseFormRef = ref();
     const selectedSemester = ref('');
     
     const classes = ref<Class[]>([]);
     const semesters = ref<Semester[]>([]);
-    const courses = ref<Course[]>([]);
-    const classCourses = ref<ClassCourse[]>([]);
-    const currentClass = ref<Class>({} as Class);
     
     const pagination = reactive({
       current: 1,
@@ -263,12 +148,7 @@ export default defineComponent({
     const formData = reactive({
       id: undefined,
       name: '',
-      semesterId: undefined,
-    });
-    
-    const addCourseFormData = reactive({
-      courseId: undefined,
-      pricePerHour: undefined,
+      semester_id: undefined,
     });
     
     // 表格列定义
@@ -286,25 +166,7 @@ export default defineComponent({
       {
         title: '操作',
         key: 'action',
-        width: 250,
-      },
-    ];
-    
-    const courseColumns = [
-      {
-        title: '课程名称',
-        dataIndex: 'courseName',
-        key: 'courseName',
-      },
-      {
-        title: '每小时价格',
-        dataIndex: 'pricePerHour',
-        key: 'pricePerHour',
-      },
-      {
-        title: '操作',
-        key: 'action',
-        width: 150,
+        width: 200,
       },
     ];
     
@@ -313,28 +175,13 @@ export default defineComponent({
       name: [
         { required: true, message: '请输入班级名称', trigger: 'blur' },
       ],
-      semesterId: [
+      semester_id: [
         { required: true, message: '请选择学期', trigger: 'change' },
-      ],
-    };
-    
-    const addCourseRules = {
-      courseId: [
-        { required: true, message: '请选择课程', trigger: 'change' },
-      ],
-      pricePerHour: [
-        { required: true, message: '请输入每小时价格', trigger: 'blur' },
       ],
     };
     
     // 模态框标题
     const modalTitle = computed(() => isEdit.value ? '编辑班级' : '添加班级');
-    
-    // 可用课程列表
-    const availableCourses = computed(() => {
-      const usedCourseIds = classCourses.value.map(cc => cc.courseId);
-      return courses.value.filter(course => !usedCourseIds.includes(course.id));
-    });
     
     // 加载学期列表
     const loadSemesters = async () => {
@@ -346,46 +193,21 @@ export default defineComponent({
       }
     };
     
-    // 加载课程列表
-    const loadCourses = async () => {
-      try {
-        const response = await request.get('/api/h1/course');
-        courses.value = response.data.data || [];
-      } catch (error) {
-        message.error('加载课程列表失败');
-      }
-    };
-    
     // 加载班级列表
     const loadClasses = async () => {
       loading.value = true;
       try {
-        const response = await request.get('/api/h1/class', {
+        const response = await request.get('/api/h1/class/with-semester', {
           params: {
-            page: pagination.current,
-            pageSize: pagination.pageSize,
-            semesterId: selectedSemester.value || undefined,
+            semester_id: selectedSemester.value || undefined,
           },
         });
         classes.value = response.data.data || [];
-        pagination.total = response.data.total || 0;
+        pagination.total = classes.value.length; // 前端分页
       } catch (error) {
         message.error('加载班级列表失败');
       } finally {
         loading.value = false;
-      }
-    };
-    
-    // 加载班级课程
-    const loadClassCourses = async (classId: number) => {
-      coursesLoading.value = true;
-      try {
-        const response = await request.get(`/api/h1/class-course?classId=${classId}`);
-        classCourses.value = response.data.data || [];
-      } catch (error) {
-        message.error('加载班级课程失败');
-      } finally {
-        coursesLoading.value = false;
       }
     };
     
@@ -407,38 +229,17 @@ export default defineComponent({
       isEdit.value = true;
       formData.id = record.id;
       formData.name = record.name;
-      formData.semesterId = record.semesterId;
+      formData.semester_id = record.semester_id;
       modalVisible.value = true;
-    };
-    
-    // 查看班级课程
-    const viewClassCourses = (record: Class) => {
-      currentClass.value = record;
-      loadClassCourses(record.id);
-      coursesModalVisible.value = true;
-    };
-    
-    // 显示添加课程模态框
-    const showAddCourseModal = () => {
-      resetAddCourseForm();
-      addCourseModalVisible.value = true;
     };
     
     // 重置表单
     const resetForm = () => {
       formData.id = undefined;
       formData.name = '';
-      formData.semesterId = undefined;
+      formData.semester_id = undefined;
       if (formRef.value) {
         formRef.value.clearValidate();
-      }
-    };
-    
-    const resetAddCourseForm = () => {
-      addCourseFormData.courseId = undefined;
-      addCourseFormData.pricePerHour = undefined;
-      if (addCourseFormRef.value) {
-        addCourseFormRef.value.clearValidate();
       }
     };
     
@@ -465,63 +266,10 @@ export default defineComponent({
       }
     };
     
-    // 添加课程到班级
-    const handleAddCourse = async () => {
-      try {
-        await addCourseFormRef.value.validate();
-        addCourseConfirmLoading.value = true;
-        
-        await request.post('/api/h1/class-course', {
-          classId: currentClass.value.id,
-          courseId: addCourseFormData.courseId,
-          semesterId: currentClass.value.semesterId,
-          pricePerHour: addCourseFormData.pricePerHour,
-        });
-        
-        message.success('课程添加成功');
-        addCourseModalVisible.value = false;
-        loadClassCourses(currentClass.value.id);
-      } catch (error) {
-        message.error('课程添加失败');
-      } finally {
-        addCourseConfirmLoading.value = false;
-      }
-    };
-    
-    // 删除班级课程
-    const deleteClassCourse = async (id: number) => {
-      try {
-        await request.delete(`/api/h1/class-course/${id}`);
-        message.success('课程删除成功');
-        loadClassCourses(currentClass.value.id);
-      } catch (error) {
-        message.error('课程删除失败');
-      }
-    };
-    
     // 取消操作
     const handleCancel = () => {
       modalVisible.value = false;
       resetForm();
-    };
-    
-    const handleCoursesCancel = () => {
-      coursesModalVisible.value = false;
-    };
-    
-    const handleAddCourseCancel = () => {
-      addCourseModalVisible.value = false;
-      resetAddCourseForm();
-    };
-    
-    const handleCoursesSubmit = () => {
-      coursesModalVisible.value = false;
-    };
-    
-    // 编辑班级课程
-    const editClassCourse = (record: ClassCourse) => {
-      // 这里可以实现编辑功能
-      message.info('编辑功能待实现');
     };
     
     // 删除班级
@@ -544,51 +292,29 @@ export default defineComponent({
     
     onMounted(() => {
       loadSemesters();
-      loadCourses();
       loadClasses();
     });
     
     return {
       loading,
       modalVisible,
-      coursesModalVisible,
-      addCourseModalVisible,
       confirmLoading,
-      coursesConfirmLoading,
-      addCourseConfirmLoading,
-      coursesLoading,
       isEdit,
       formRef,
-      addCourseFormRef,
       selectedSemester,
       classes,
       semesters,
-      courses,
-      classCourses,
-      currentClass,
       pagination,
       formData,
-      addCourseFormData,
       columns,
-      courseColumns,
       rules,
-      addCourseRules,
       modalTitle,
-      availableCourses,
       handleSemesterChange,
       showCreateModal,
       showEditModal,
-      viewClassCourses,
-      showAddCourseModal,
       handleSubmit,
-      handleAddCourse,
       handleCancel,
-      handleCoursesCancel,
-      handleAddCourseCancel,
-      handleCoursesSubmit,
-      editClassCourse,
       deleteClass,
-      deleteClassCourse,
       handleTableChange,
     };
   },
@@ -605,18 +331,6 @@ export default defineComponent({
 }
 
 .page-header h2 {
-  margin: 0;
-  color: #1890ff;
-}
-
-.courses-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.courses-header h3 {
   margin: 0;
   color: #1890ff;
 }

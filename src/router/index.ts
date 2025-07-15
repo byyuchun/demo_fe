@@ -95,6 +95,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../views/admin/EnrollmentManagement.vue')
       },
       {
+        path: 'teaching-class',
+        name: 'teaching-class',
+        component: () => import('../views/admin/TeachingClassManagement.vue')
+      },
+            {
         path: 'schedule',
         name: 'schedule',
         component: () => import('../views/admin/ScheduleManagement.vue')
@@ -106,8 +111,18 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'billing',
-        name: 'billing',
+        name: 'billing', 
         component: () => import('../views/admin/BillingManagement.vue')
+      },
+      {
+        path: 'api-test',
+        name: 'api-test',
+        component: () => import('../views/admin/ApiTest.vue')
+      },
+      {
+        path: 'quick-test',
+        name: 'quick-test',
+        component: () => import('../views/admin/QuickTest.vue')
       }
     ]
   },

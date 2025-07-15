@@ -55,7 +55,7 @@
 
     <!-- 创建/编辑课程的模态框 -->
     <a-modal
-      v-model:open="modalVisible"
+      v-model:visible="modalVisible"
       :title="modalTitle"
       @ok="handleSubmit"
       @cancel="handleCancel"

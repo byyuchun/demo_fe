@@ -37,6 +37,11 @@
             <span>学生管理</span>
           </a-menu-item>
           
+          <a-menu-item key="teaching-class">
+            <TeamOutlined />
+            <span>教学班管理</span>
+          </a-menu-item>
+          
           <a-menu-item key="enrollment">
             <FormOutlined />
             <span>报名管理</span>
@@ -55,6 +60,18 @@
           <a-menu-item key="billing">
             <DollarCircleOutlined />
             <span>账单统计</span>
+          </a-menu-item>
+          
+          <a-menu-divider />
+          
+          <a-menu-item key="quick-test">
+            <ExperimentOutlined />
+            <span>功能测试</span>
+          </a-menu-item>
+          
+          <a-menu-item key="api-test">
+            <ApiOutlined />
+            <span>API调试</span>
           </a-menu-item>
         </a-menu>
       </a-layout-sider>
@@ -115,6 +132,8 @@ import {
   TableOutlined,
   CheckCircleOutlined,
   DollarCircleOutlined,
+  ExperimentOutlined,
+  ApiOutlined,
 } from '@ant-design/icons-vue';
 
 export default defineComponent({
@@ -130,6 +149,8 @@ export default defineComponent({
     TableOutlined,
     CheckCircleOutlined,
     DollarCircleOutlined,
+    ExperimentOutlined,
+    ApiOutlined,
   },
   setup() {
     const router = useRouter();
@@ -139,13 +160,16 @@ export default defineComponent({
     const current = computed(() => {
       const path = route.path;
       if (path.includes('semester')) return 'semester';
-      if (path.includes('class')) return 'class';
+      if (path.includes('class') && !path.includes('teaching-class')) return 'class';
+      if (path.includes('teaching-class')) return 'teaching-class';
       if (path.includes('course')) return 'course';
       if (path.includes('student')) return 'student';
       if (path.includes('enrollment')) return 'enrollment';
       if (path.includes('schedule')) return 'schedule';
       if (path.includes('attendance')) return 'attendance';
       if (path.includes('billing')) return 'billing';
+      if (path.includes('quick-test')) return 'quick-test';
+      if (path.includes('api-test')) return 'api-test';
       return 'dashboard';
     });
     
@@ -154,12 +178,15 @@ export default defineComponent({
         dashboard: '数据概览',
         semester: '学期管理',
         class: '班级管理',
+        'teaching-class': '教学班管理',
         course: '课程管理',
         student: '学生管理',
         enrollment: '报名管理',
         schedule: '课表管理',
         attendance: '打卡管理',
         billing: '账单统计',
+        'quick-test': '功能测试',
+        'api-test': 'API调试',
       };
       return titles[current.value] || '管理系统';
     });

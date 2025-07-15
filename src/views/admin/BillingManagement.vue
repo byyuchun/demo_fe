@@ -165,7 +165,7 @@
 
     <!-- 收费模态框 -->
     <a-modal
-      v-model:open="paymentModalVisible"
+      v-model:visible="paymentModalVisible"
       title="学生收费"
       @ok="handlePaymentSubmit"
       @cancel="handlePaymentCancel"
@@ -226,7 +226,7 @@
 
     <!-- 账单详情模态框 -->
     <a-modal
-      v-model:open="billDetailModalVisible"
+      v-model:visible="billDetailModalVisible"
       title="账单详情"
       @cancel="handleBillDetailCancel"
       :footer="null"
@@ -288,6 +288,7 @@ import {
 } from '@ant-design/icons-vue';
 import request from '@/utils/request';
 import moment from 'moment';
+import { formatDateDisplay } from '@/utils/dateUtils';
 
 interface Bill {
   id: number;
@@ -440,9 +441,9 @@ export default defineComponent({
       }
     };
     
-    // 格式化日期
+    // 格式化日期（用于显示）
     const formatDate = (date: string) => {
-      return moment(date).format('YYYY-MM-DD');
+      return formatDateDisplay(date);
     };
     
     // 加载数据
@@ -458,16 +459,25 @@ export default defineComponent({
     const loadBills = async () => {
       loading.value = true;
       try {
-        const response = await request.get('/api/h1/student-semester-bill', {
-          params: {
-            page: pagination.current,
-            pageSize: pagination.pageSize,
-            status: selectedStatus.value || undefined,
-            semesterId: selectedSemester.value || undefined,
-          },
-        });
-        bills.value = response.data.data || [];
-        pagination.total = response.data.total || 0;
+        const params: any = {};
+        if (selectedSemester.value) {
+          params.semester_id = selectedSemester.value;
+        }
+        const response = await request.get('/api/h1/student-semester-bill/all-with-detail', { params });
+        const data = response.data.data || [];
+        bills.value = data.map((item: any) => ({
+          id: item.bill_id,
+          studentId: item.student_id,
+          studentName: item.student_name,
+          semesterId: item.semester_id,
+          semesterName: item.semester_name,
+          totalFee: item.total_fee,
+          discountAmount: 0,
+          finalAmount: item.total_fee,
+          status: item.status,
+          finalizedAt: item.finalized_at,
+        }));
+        pagination.total = bills.value.length;
       } catch (error) {
         message.error('加载账单列表失败');
       } finally {
@@ -488,8 +498,18 @@ export default defineComponent({
     // 加载统计数据
     const loadStatistics = async () => {
       try {
-        const response = await request.get('/api/h1/student-semester-bill/statistics');
-        statistics.value = response.data.data || {};
+        const params: any = {};
+        if (selectedSemester.value) {
+          params.semester_id = selectedSemester.value;
+        }
+        const response = await request.get('/api/h1/student-semester-bill/statistics', { params });
+        const data = response.data.data || {};
+        statistics.value = {
+          totalIncome: data.total_amount || 0,
+          unpaidAmount: data.total_amount || 0, // 这里可以根据状态进一步细分
+          monthlyIncome: data.total_amount || 0,
+          totalBills: data.total_students || 0,
+        };
       } catch (error) {
         message.error('加载统计数据失败');
       }

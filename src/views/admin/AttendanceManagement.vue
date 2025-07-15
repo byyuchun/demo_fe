@@ -14,8 +14,9 @@
               @change="handleStatusChange"
             >
               <a-select-option value="">全部状态</a-select-option>
-              <a-select-option value="正常">正常</a-select-option>
-              <a-select-option value="缺勤">缺勤</a-select-option>
+              <a-select-option value="出勤">出勤</a-select-option>
+              <a-select-option value="请假">请假</a-select-option>
+              <a-select-option value="旷课">旷课</a-select-option>
               <a-select-option value="补签">补签</a-select-option>
             </a-select>
             <a-range-picker
@@ -53,14 +54,17 @@
               {{ record.status }}
             </a-tag>
           </template>
-          <template v-else-if="column.key === 'checkedAt'">
-            {{ formatDateTime(record.checkedAt) }}
+          <template v-else-if="column.key === 'class_time'">
+            {{ formatTime(record.start_time) }} - {{ formatTime(record.end_time) }}
           </template>
-          <template v-else-if="column.key === 'scheduleDate'">
-            {{ formatDate(record.scheduleDate) }}
+          <template v-else-if="column.key === 'checked_at'">
+            {{ formatDateTime(record.checked_at) }}
           </template>
-          <template v-else-if="column.key === 'makeupScheduleId'">
-            <a-tag v-if="record.makeupScheduleId" color="orange">
+          <template v-else-if="column.key === 'schedule_date'">
+            {{ formatDate(record.schedule_date) }}
+          </template>
+          <template v-else-if="column.key === 'makeup_schedule_id'">
+            <a-tag v-if="record.makeup_schedule_id" color="orange">
               补课安排
             </a-tag>
             <span v-else>-</span>
@@ -68,7 +72,7 @@
           <template v-else-if="column.key === 'action'">
             <a-space>
               <a-button 
-                v-if="record.status === '缺勤'" 
+                v-if="record.status === '旷课' || record.status === '请假'" 
                 size="small" 
                 type="primary" 
                 @click="showMakeupModalForRecord(record)"
@@ -104,7 +108,7 @@
 
     <!-- 补签模态框 -->
     <a-modal
-      v-model:open="makeupModalVisible"
+      v-model:visible="makeupModalVisible"
       title="学生补签"
       @ok="handleMakeupSubmit"
       @cancel="handleMakeupCancel"
@@ -117,9 +121,9 @@
         :rules="makeupRules"
         layout="vertical"
       >
-        <a-form-item label="选择学生" name="studentId">
+        <a-form-item label="选择学生" name="student_id">
           <a-select
-            v-model:value="makeupFormData.studentId"
+            v-model:value="makeupFormData.student_id"
             placeholder="请选择学生"
             style="width: 100%"
             show-search
@@ -131,9 +135,9 @@
           </a-select>
         </a-form-item>
         
-        <a-form-item label="选择课程安排" name="scheduleId">
+        <a-form-item label="选择课程安排" name="schedule_id">
           <a-select
-            v-model:value="makeupFormData.scheduleId"
+            v-model:value="makeupFormData.schedule_id"
             placeholder="请选择课程安排"
             style="width: 100%"
             @change="handleScheduleChange"
@@ -144,9 +148,9 @@
           </a-select>
         </a-form-item>
         
-        <a-form-item label="补课安排" name="makeupScheduleId">
+        <a-form-item label="补课安排" name="makeup_schedule_id">
           <a-select
-            v-model:value="makeupFormData.makeupScheduleId"
+            v-model:value="makeupFormData.makeup_schedule_id"
             placeholder="请选择补课安排"
             style="width: 100%"
           >
@@ -156,9 +160,9 @@
           </a-select>
         </a-form-item>
         
-        <a-form-item label="补签时间" name="checkedAt">
+        <a-form-item label="补签时间" name="checked_at">
           <a-date-picker
-            v-model:value="makeupFormData.checkedAt"
+            v-model:value="makeupFormData.checked_at"
             show-time
             placeholder="请选择补签时间"
             style="width: 100%"
@@ -177,7 +181,7 @@
 
     <!-- 补课详情模态框 -->
     <a-modal
-      v-model:open="makeupDetailModalVisible"
+      v-model:visible="makeupDetailModalVisible"
       title="补课详情"
       @cancel="handleMakeupDetailCancel"
       :footer="null"
@@ -204,18 +208,21 @@ import { message } from 'ant-design-vue';
 import { PlusOutlined, ClockCircleOutlined, EyeOutlined, CloseOutlined } from '@ant-design/icons-vue';
 import request from '@/utils/request';
 import moment from 'moment';
+import { toRFC3339, formatDateDisplay, formatDatetimeDisplay, datetimeToRFC3339 } from '@/utils/dateUtils';
 
 interface Attendance {
   id: number;
-  studentId: number;
-  studentName: string;
-  scheduleId: number;
-  scheduleDate: string;
-  className: string;
-  courseName: string;
-  checkedAt: string;
+  student_id: number;
+  student_name: string;
+  schedule_id: number;
+  schedule_date: string;
+  start_time: string;
+  end_time: string;
+  class_name: string;
+  course_name: string;
+  checked_at: string;
   status: string;
-  makeupScheduleId: number;
+  makeup_schedule_id: number;
 }
 
 interface Student {
@@ -259,10 +266,10 @@ export default defineComponent({
     });
     
     const makeupFormData = reactive({
-      studentId: undefined,
-      scheduleId: undefined,
-      makeupScheduleId: undefined,
-      checkedAt: null,
+      student_id: undefined,
+      schedule_id: undefined,
+      makeup_schedule_id: undefined,
+      checked_at: null,
       remark: '',
     });
     
@@ -270,28 +277,33 @@ export default defineComponent({
     const columns = [
       {
         title: '学生姓名',
-        dataIndex: 'studentName',
-        key: 'studentName',
+        dataIndex: 'student_name',
+        key: 'student_name',
       },
       {
         title: '班级',
-        dataIndex: 'className',
-        key: 'className',
+        dataIndex: 'class_name',
+        key: 'class_name',
       },
       {
         title: '课程',
-        dataIndex: 'courseName',
-        key: 'courseName',
+        dataIndex: 'course_name',
+        key: 'course_name',
       },
       {
         title: '上课日期',
-        dataIndex: 'scheduleDate',
-        key: 'scheduleDate',
+        dataIndex: 'schedule_date',
+        key: 'schedule_date',
+      },
+      {
+        title: '上课时间',
+        key: 'class_time',
+        width: 150,
       },
       {
         title: '打卡时间',
-        dataIndex: 'checkedAt',
-        key: 'checkedAt',
+        dataIndex: 'checked_at',
+        key: 'checked_at',
       },
       {
         title: '状态',
@@ -301,8 +313,8 @@ export default defineComponent({
       },
       {
         title: '补课安排',
-        dataIndex: 'makeupScheduleId',
-        key: 'makeupScheduleId',
+        dataIndex: 'makeup_schedule_id',
+        key: 'makeup_schedule_id',
         width: 100,
       },
       {
@@ -314,13 +326,13 @@ export default defineComponent({
     
     // 表单验证规则
     const makeupRules = {
-      studentId: [
+      student_id: [
         { required: true, message: '请选择学生', trigger: 'change' },
       ],
-      scheduleId: [
+      schedule_id: [
         { required: true, message: '请选择课程安排', trigger: 'change' },
       ],
-      checkedAt: [
+      checked_at: [
         { required: true, message: '请选择补签时间', trigger: 'change' },
       ],
     };
@@ -328,25 +340,34 @@ export default defineComponent({
     // 获取状态颜色
     const getStatusColor = (status: string) => {
       switch (status) {
-        case '正常':
+        case '出勤':
           return 'green';
-        case '缺勤':
+        case '请假':
+          return 'orange';
+        case '旷课':
           return 'red';
         case '补签':
-          return 'orange';
+          return 'blue';
         default:
           return 'default';
       }
     };
     
-    // 格式化日期
+    // 格式化日期（用于显示）
     const formatDate = (date: string) => {
-      return moment(date).format('YYYY-MM-DD');
+      return formatDateDisplay(date);
     };
     
-    // 格式化日期时间
+    // 格式化日期时间（用于显示）
     const formatDateTime = (datetime: string) => {
-      return moment(datetime).format('YYYY-MM-DD HH:mm:ss');
+      return formatDatetimeDisplay(datetime);
+    };
+
+    // 格式化时间（用于显示）
+    const formatTime = (time: string) => {
+      // 直接从时间戳字符串中提取时间部分，避免时区转换
+      const timeStr = time.includes('T') ? time.split('T')[1] : time;
+      return timeStr.split(':').slice(0, 2).join(':');
     };
     
     // 学生搜索过滤
@@ -367,15 +388,16 @@ export default defineComponent({
     const loadAttendances = async () => {
       loading.value = true;
       try {
-        const response = await request.get('/api/h1/attendance', {
-          params: {
-            page: pagination.current,
-            pageSize: pagination.pageSize,
-            status: selectedStatus.value || undefined,
-            startDate: dateRange.value[0] ? dateRange.value[0].format('YYYY-MM-DD') : undefined,
-            endDate: dateRange.value[1] ? dateRange.value[1].format('YYYY-MM-DD') : undefined,
-          },
-        });
+        const params: any = {};
+        if (selectedStatus.value) {
+          params.status = selectedStatus.value;
+        }
+        if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
+          params.start_date = dateRange.value[0].format('YYYY-MM-DD');
+          params.end_date = dateRange.value[1].format('YYYY-MM-DD');
+        }
+        
+        const response = await request.get('/api/h1/attendance', { params });
         attendances.value = response.data.data || [];
         pagination.total = response.data.total || 0;
       } catch (error) {
@@ -420,7 +442,7 @@ export default defineComponent({
     // 课程安排变化处理
     const handleScheduleChange = () => {
       // 加载可用的补课安排
-      availableMakeupSchedules.value = schedules.value.filter(s => s.id !== makeupFormData.scheduleId);
+      availableMakeupSchedules.value = schedules.value.filter(s => s.id !== makeupFormData.schedule_id);
     };
     
     // 显示补签模态框
@@ -432,9 +454,9 @@ export default defineComponent({
     // 为特定记录显示补签模态框
     const showMakeupModalForRecord = (record: Attendance) => {
       resetMakeupForm();
-      makeupFormData.studentId = record.studentId;
-      makeupFormData.scheduleId = record.scheduleId;
-      makeupFormData.checkedAt = moment();
+              makeupFormData.student_id = record.student_id;
+      makeupFormData.schedule_id = record.schedule_id;
+      makeupFormData.checked_at = moment();
       handleScheduleChange();
       makeupModalVisible.value = true;
     };
@@ -452,10 +474,10 @@ export default defineComponent({
     
     // 重置表单
     const resetMakeupForm = () => {
-      makeupFormData.studentId = undefined;
-      makeupFormData.scheduleId = undefined;
-      makeupFormData.makeupScheduleId = undefined;
-      makeupFormData.checkedAt = null;
+      makeupFormData.student_id = undefined;
+      makeupFormData.schedule_id = undefined;
+      makeupFormData.makeup_schedule_id = undefined;
+      makeupFormData.checked_at = null;
       makeupFormData.remark = '';
       availableMakeupSchedules.value = [];
       if (makeupFormRef.value) {
@@ -469,14 +491,15 @@ export default defineComponent({
         await makeupFormRef.value.validate();
         makeupConfirmLoading.value = true;
         
-        await request.post('/api/h1/attendance', {
-          ...makeupFormData,
-          status: '补签',
-          checkedAt: makeupFormData.checkedAt.format('YYYY-MM-DD HH:mm:ss'),
+        await request.post('/api/h1/attendance/admin-makeup', {
+          schedule_id: makeupFormData.schedule_id,
+          student_id: makeupFormData.student_id,
+          makeup_schedule_id: makeupFormData.makeup_schedule_id || null,
         });
         
         message.success('补签成功');
         makeupModalVisible.value = false;
+        resetMakeupForm();
         loadAttendances();
       } catch (error) {
         message.error('补签失败');
@@ -541,6 +564,7 @@ export default defineComponent({
       getStatusColor,
       formatDate,
       formatDateTime,
+      formatTime,
       filterStudentOption,
       handleStatusChange,
       handleDateChange,

@@ -1,282 +1,320 @@
 <template>
   <div class="dashboard">
-    <a-row :gutter="16">
-      <!-- 统计卡片 -->
+    <div class="page-header">
+      <h1>管理员控制台</h1>
+      <p>欢迎使用学生上课打卡与收费管理系统</p>
+    </div>
+
+    <!-- API连接测试 -->
+    <a-card title="🔧 系统状态检测" style="margin-bottom: 20px;">
+      <a-space direction="vertical" style="width: 100%;">
+        <a-space>
+          <a-button @click="testConnection" :loading="testing">
+            测试后端连接
+          </a-button>
+          <a-tag :color="connectionStatus.color">{{ connectionStatus.text }}</a-tag>
+        </a-space>
+        
+        <a-space>
+          <a-button @click="testAuth" :loading="authTesting">
+            测试管理员认证
+          </a-button>
+          <a-tag :color="authStatus.color">{{ authStatus.text }}</a-tag>
+        </a-space>
+
+        <div v-if="debugInfo">
+          <a-divider>调试信息</a-divider>
+          <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">{{ debugInfo }}</pre>
+        </div>
+      </a-space>
+    </a-card>
+
+    <!-- 系统概览 -->
+    <a-row :gutter="16" style="margin-bottom: 20px;">
       <a-col :span="6">
         <a-card>
           <a-statistic
-            title="总学生数"
+            title="学生总数"
             :value="statistics.studentCount"
-            :prefix="h(UserOutlined)"
-            :value-style="{ color: '#1890ff' }"
+            prefix="👥"
+            :loading="statsLoading"
           />
         </a-card>
       </a-col>
-      
       <a-col :span="6">
         <a-card>
           <a-statistic
-            title="总课程数"
+            title="课程总数"
             :value="statistics.courseCount"
-            :prefix="h(BookOutlined)"
-            :value-style="{ color: '#52c41a' }"
+            prefix="📚"
+            :loading="statsLoading"
           />
         </a-card>
       </a-col>
-      
       <a-col :span="6">
         <a-card>
           <a-statistic
-            title="总班级数"
+            title="班级总数"
             :value="statistics.classCount"
-            :prefix="h(TeamOutlined)"
-            :value-style="{ color: '#722ed1' }"
+            prefix="🏫"
+            :loading="statsLoading"
           />
         </a-card>
       </a-col>
-      
       <a-col :span="6">
         <a-card>
           <a-statistic
             title="本月收入"
             :value="statistics.monthlyIncome"
-            prefix="¥"
-            :value-style="{ color: '#f5222d' }"
+            prefix="💰"
+            :precision="2"
+            suffix="元"
+            :loading="statsLoading"
           />
         </a-card>
       </a-col>
     </a-row>
-    
-    <a-row :gutter="16" style="margin-top: 16px">
-      <!-- 图表区域 -->
-      <a-col :span="12">
-        <a-card title="出勤率趋势">
-          <div ref="attendanceChart" style="height: 300px"></div>
-        </a-card>
-      </a-col>
-      
-      <a-col :span="12">
-        <a-card title="收入趋势">
-          <div ref="incomeChart" style="height: 300px"></div>
-        </a-card>
-      </a-col>
-    </a-row>
-    
-    <a-row :gutter="16" style="margin-top: 16px">
-      <!-- 最新报名 -->
-      <a-col :span="12">
-        <a-card title="最新报名">
-          <a-list
-            :data-source="recentEnrollments"
-            size="small"
-          >
-            <template #renderItem="{ item }">
-              <a-list-item>
-                <a-list-item-meta>
-                  <template #title>{{ item.studentName }}</template>
-                  <template #description>{{ item.className }} - {{ item.courseName }}</template>
-                </a-list-item-meta>
-                <div>{{ formatDate(item.enrolledAt) }}</div>
-              </a-list-item>
-            </template>
-          </a-list>
-        </a-card>
-      </a-col>
-      
-      <!-- 待处理事项 -->
-      <a-col :span="12">
-        <a-card title="待处理事项">
-          <a-list
-            :data-source="pendingTasks"
-            size="small"
-          >
-            <template #renderItem="{ item }">
-              <a-list-item>
-                <a-list-item-meta>
-                  <template #title>{{ item.title }}</template>
-                  <template #description>{{ item.description }}</template>
-                </a-list-item-meta>
-                <a-badge :count="item.count" :number-style="{ backgroundColor: '#f50' }" />
-              </a-list-item>
-            </template>
-          </a-list>
-        </a-card>
-      </a-col>
-    </a-row>
+
+    <!-- 今日课表 -->
+    <a-card title="📅 今日课表" style="margin-bottom: 20px;">
+      <a-table
+        :columns="scheduleColumns"
+        :data-source="todaySchedules"
+        :loading="scheduleLoading"
+        size="small"
+        :pagination="false"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'time'">
+            {{ formatTime(record.start_time) }} - {{ formatTime(record.end_time) }}
+          </template>
+        </template>
+      </a-table>
+    </a-card>
+
+    <!-- 快速操作 -->
+    <a-card title="⚡ 快速操作">
+      <a-space wrap>
+        <a-button type="primary" @click="$router.push('/admin/student')">
+          添加学生
+        </a-button>
+        <a-button @click="$router.push('/admin/course')">
+          管理课程
+        </a-button>
+        <a-button @click="$router.push('/admin/class')">
+          管理班级
+        </a-button>
+        <a-button @click="$router.push('/admin/teaching-class')">
+          教学班管理
+        </a-button>
+        <a-button @click="$router.push('/admin/schedule')">
+          排课管理
+        </a-button>
+        <a-button @click="$router.push('/admin/attendance')">
+          出勤管理
+        </a-button>
+        <a-button @click="$router.push('/admin/billing')">
+          账单管理
+        </a-button>
+        <a-divider type="vertical" />
+        <a-button type="dashed" @click="$router.push('/admin/api-test')">
+          🔧 API测试
+        </a-button>
+      </a-space>
+    </a-card>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, h } from 'vue';
-import { UserOutlined, BookOutlined, TeamOutlined } from '@ant-design/icons-vue';
-import * as echarts from 'echarts';
-import { statisticsApi } from '@/api/admin';
+import { defineComponent, ref, onMounted } from 'vue';
+import { message } from 'ant-design-vue';
+import { statisticsApi, scheduleApi, studentApi } from '@/api/admin';
+import request from '@/utils/request';
+import storageService from '@/service/storageService';
 
 export default defineComponent({
   setup() {
-    const attendanceChart = ref();
-    const incomeChart = ref();
+    const testing = ref(false);
+    const authTesting = ref(false);
+    const statsLoading = ref(false);
+    const scheduleLoading = ref(false);
+    const debugInfo = ref('');
     
-    // 统计数据
+    const connectionStatus = ref({
+      color: 'default',
+      text: '未测试'
+    });
+    
+    const authStatus = ref({
+      color: 'default', 
+      text: '未测试'
+    });
+
     const statistics = ref({
       studentCount: 0,
       courseCount: 0,
       classCount: 0,
-      monthlyIncome: 0,
+      monthlyIncome: 0
     });
-    
-    // 最新报名
-    const recentEnrollments = ref([
+
+    const todaySchedules = ref([]);
+
+    const scheduleColumns = [
       {
-        studentName: '张三',
-        className: '高一A班',
-        courseName: '数学',
-        enrolledAt: new Date(),
+        title: '时间',
+        key: 'time',
+        width: 150,
       },
       {
-        studentName: '李四',
-        className: '高一B班',
-        courseName: '物理',
-        enrolledAt: new Date(),
+        title: '班级',
+        dataIndex: 'class_name',
+        key: 'class_name',
       },
       {
-        studentName: '王五',
-        className: '高二A班',
-        courseName: '化学',
-        enrolledAt: new Date(),
-      },
-    ]);
-    
-    // 待处理事项
-    const pendingTasks = ref([
-      {
-        title: '未结算账单',
-        description: '需要处理的学生账单',
-        count: 5,
+        title: '课程',
+        dataIndex: 'course_name',
+        key: 'course_name',
       },
       {
-        title: '缺勤记录',
-        description: '需要跟进的缺勤学生',
-        count: 3,
+        title: '学期',
+        dataIndex: 'semester_name',
+        key: 'semester_name',
       },
-      {
-        title: '补课申请',
-        description: '待审批的补课申请',
-        count: 2,
-      },
-    ]);
-    
-    // 格式化日期
-    const formatDate = (date: Date) => {
-      return date.toLocaleDateString('zh-CN');
-    };
-    
-    // 初始化图表
-    const initCharts = () => {
-      // 出勤率趋势图
-      const attendanceChartInstance = echarts.init(attendanceChart.value);
-      attendanceChartInstance.setOption({
-        title: {
-          text: '出勤率(%)',
-          left: 'center',
-          textStyle: {
-            fontSize: 14,
-          },
-        },
-        tooltip: {
-          trigger: 'axis',
-        },
-        xAxis: {
-          type: 'category',
-          data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-        },
-        yAxis: {
-          type: 'value',
-          min: 0,
-          max: 100,
-        },
-        series: [
-          {
-            data: [95, 92, 88, 94, 90, 96, 89],
-            type: 'line',
-            smooth: true,
-            areaStyle: {
-              opacity: 0.3,
-            },
-          },
-        ],
-      });
+    ];
+
+    // 测试后端连接
+    const testConnection = async () => {
+      testing.value = true;
+      debugInfo.value = '';
       
-      // 收入趋势图
-      const incomeChartInstance = echarts.init(incomeChart.value);
-      incomeChartInstance.setOption({
-        title: {
-          text: '收入(元)',
-          left: 'center',
-          textStyle: {
-            fontSize: 14,
-          },
-        },
-        tooltip: {
-          trigger: 'axis',
-        },
-        xAxis: {
-          type: 'category',
-          data: ['1月', '2月', '3月', '4月', '5月', '6月'],
-        },
-        yAxis: {
-          type: 'value',
-        },
-        series: [
-          {
-            data: [15000, 18000, 22000, 25000, 28000, 32000],
-            type: 'bar',
-            itemStyle: {
-              color: '#1890ff',
-            },
-          },
-        ],
-      });
-    };
-    
-    // 加载统计数据
-    const loadStatistics = async () => {
       try {
-        const data = await statisticsApi.getOverview();
-        statistics.value = {
-          studentCount: data.studentCount,
-          courseCount: data.courseCount,
-          classCount: data.classCount,
-          monthlyIncome: data.monthlyIncome,
+        // 测试简单的后端连接
+        const response = await request.get('/api/h1/course');
+        
+        connectionStatus.value = {
+          color: 'success',
+          text: '连接正常'
         };
-      } catch (error) {
-        console.error('加载统计数据失败:', error);
-        // 保持默认值
-        statistics.value = {
-          studentCount: 0,
-          courseCount: 0,
-          classCount: 0,
-          monthlyIncome: 0,
+        
+        debugInfo.value = `连接成功!\n响应状态: ${response.status}\n响应数据: ${JSON.stringify(response.data, null, 2)}`;
+        message.success('后端连接正常');
+        
+      } catch (error: any) {
+        connectionStatus.value = {
+          color: 'error',
+          text: '连接失败'
         };
+        
+        debugInfo.value = `连接失败!\n错误信息: ${error.message}\n错误详情: ${JSON.stringify(error.response?.data || error, null, 2)}`;
+        console.error('连接测试失败:', error);
+        
+        if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
+          message.error('无法连接到后端服务器 (localhost:9090)，请确保后端服务正在运行');
+        } else {
+          message.error('后端连接测试失败: ' + error.message);
+        }
+      } finally {
+        testing.value = false;
       }
     };
-    
+
+    // 测试管理员认证
+    const testAuth = async () => {
+      authTesting.value = true;
+      
+      try {
+        const token = storageService.get(storageService.USER_TOKEN);
+        
+        if (!token) {
+          authStatus.value = {
+            color: 'warning',
+            text: '未登录'
+          };
+          message.warning('请先登录管理员账号');
+          return;
+        }
+
+        // 测试需要认证的接口
+        const response = await request.get('/api/admin/info');
+        
+        authStatus.value = {
+          color: 'success',
+          text: '认证有效'
+        };
+        
+        message.success('管理员认证有效');
+        
+      } catch (error: any) {
+        authStatus.value = {
+          color: 'error',
+          text: '认证失败'
+        };
+        
+        if (error.response?.status === 401) {
+          message.error('管理员认证已过期，请重新登录');
+        } else {
+          message.error('认证测试失败: ' + error.message);
+        }
+      } finally {
+        authTesting.value = false;
+      }
+    };
+
+    // 加载统计数据
+    const loadStatistics = async () => {
+      statsLoading.value = true;
+      try {
+        const data = await statisticsApi.getOverview();
+        statistics.value = data;
+      } catch (error) {
+        console.error('加载统计数据失败:', error);
+      } finally {
+        statsLoading.value = false;
+      }
+    };
+
+    // 加载今日课表
+    const loadTodaySchedules = async () => {
+      scheduleLoading.value = true;
+      try {
+        const response = await scheduleApi.getToday();
+        todaySchedules.value = response.data.data || [];
+      } catch (error) {
+        console.error('加载今日课表失败:', error);
+      } finally {
+        scheduleLoading.value = false;
+      }
+    };
+
+    // 格式化时间
+    const formatTime = (timeStr: string) => {
+      if (!timeStr) return '';
+      const date = new Date(timeStr);
+      return date.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    };
+
     onMounted(() => {
       loadStatistics();
-      initCharts();
+      loadTodaySchedules();
     });
-    
+
     return {
-      h,
+      testing,
+      authTesting,
+      statsLoading,
+      scheduleLoading,
+      debugInfo,
+      connectionStatus,
+      authStatus,
       statistics,
-      recentEnrollments,
-      pendingTasks,
-      attendanceChart,
-      incomeChart,
-      formatDate,
-      UserOutlined,
-      BookOutlined,
-      TeamOutlined,
+      todaySchedules,
+      scheduleColumns,
+      testConnection,
+      testAuth,
+      formatTime,
     };
   },
 });
@@ -287,11 +325,17 @@ export default defineComponent({
   padding: 20px;
 }
 
-.ant-card {
-  margin-bottom: 16px;
+.page-header {
+  margin-bottom: 20px;
 }
 
-.ant-statistic {
-  text-align: center;
+.page-header h1 {
+  margin: 0;
+  color: #1890ff;
+}
+
+.page-header p {
+  margin: 8px 0 0 0;
+  color: #666;
 }
 </style> 

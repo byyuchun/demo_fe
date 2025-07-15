@@ -4,7 +4,7 @@ import storageService from '@/service/storageService'
 
 // 创建axios实例
 const request = axios.create({
-  baseURL: 'http://localhost:6789', // 后端接口地址
+  baseURL: 'http://localhost:9090', // 后端接口地址
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
