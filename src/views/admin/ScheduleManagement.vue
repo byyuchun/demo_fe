@@ -13,12 +13,25 @@
               <a-button @click="goToToday" size="small" type="primary">今天</a-button>
               <a-button @click="goToTomorrow" size="small">明天</a-button>
             </a-button-group>
-            <a-date-picker
-              v-model:value="selectedDate"
-              placeholder="选择日期"
-              @change="handleDateChange"
-              style="width: 150px"
-            />
+            
+            <!-- 简单的年月日选择器 -->
+            <a-space>
+              <a-select v-model:value="selectedYear" @change="handleDateSelectChange" style="width: 80px;">
+                <a-select-option v-for="year in availableYears" :key="year" :value="year">
+                  {{ year }}年
+                </a-select-option>
+              </a-select>
+              <a-select v-model:value="selectedMonth" @change="handleDateSelectChange" style="width: 70px;">
+                <a-select-option v-for="month in availableMonths" :key="month" :value="month">
+                  {{ month }}月
+                </a-select-option>
+              </a-select>
+              <a-select v-model:value="selectedDay" @change="handleDateSelectChange" style="width: 70px;">
+                <a-select-option v-for="day in availableDays" :key="day" :value="day">
+                  {{ day }}日
+                </a-select-option>
+              </a-select>
+            </a-space>
             <a-button type="primary" @click="showCreateModal">
               <template #icon><PlusOutlined /></template>
               新增课表
@@ -60,9 +73,10 @@
                     <span class="semester">{{ schedule.semester_name }}</span>
                   </div>
                   <div class="schedule-time">
-                    <a-tag color="green">
-                      {{ formatTime(schedule.start_time) }} - {{ formatTime(schedule.end_time) }}
-                    </a-tag>
+                                      <a-tag color="green">
+                    {{ formatTime(schedule.start_time) }} - {{ formatTime(schedule.end_time) }}
+                  </a-tag>
+                  <a-tag color="purple">{{ getTimePeriodName(schedule.start_time, schedule.end_time) }}</a-tag>
                   </div>
                 </div>
                 
@@ -154,28 +168,56 @@
           </a-select>
         </a-form-item>
         
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="开始时间" name="start_time">
-              <a-time-picker
-                v-model:value="formData.start_time"
-                placeholder="开始时间"
-                format="HH:mm"
-                style="width: 100%"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="结束时间" name="end_time">
-              <a-time-picker
-                v-model:value="formData.end_time"
-                placeholder="结束时间"
-                format="HH:mm"
-                style="width: 100%"
-              />
-            </a-form-item>
-          </a-col>
-        </a-row>
+        <!-- 预设时间段选择 -->
+        <a-form-item label="上课时间">
+          <a-radio-group v-model:value="formData.time_period_type" @change="handleTimePeriodTypeChange">
+            <a-radio value="preset">选择预设时间段</a-radio>
+            <a-radio value="custom">自定义时间</a-radio>
+          </a-radio-group>
+          
+          <!-- 预设时间段下拉选择 -->
+          <div v-if="formData.time_period_type === 'preset'" style="margin-top: 12px;">
+            <a-select
+              v-model:value="formData.preset_time_period"
+              placeholder="请选择时间段"
+              style="width: 100%"
+              @change="handlePresetTimeChange"
+            >
+              <a-select-option v-for="period in presetTimePeriods" :key="period.key" :value="period.key">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span><strong>{{ period.name }}</strong></span>
+                  <span style="color: #666; font-size: 12px;">{{ period.time }}</span>
+                </div>
+              </a-select-option>
+            </a-select>
+          </div>
+          
+          <!-- 自定义时间选择 -->
+          <div v-if="formData.time_period_type === 'custom'" style="margin-top: 12px;">
+            <a-row :gutter="16">
+              <a-col :span="12">
+                <a-form-item label="开始时间" name="start_time">
+                  <a-time-picker
+                    v-model:value="formData.start_time"
+                    placeholder="开始时间"
+                    format="HH:mm"
+                    style="width: 100%"
+                  />
+                </a-form-item>
+              </a-col>
+              <a-col :span="12">
+                <a-form-item label="结束时间" name="end_time">
+                  <a-time-picker
+                    v-model:value="formData.end_time"
+                    placeholder="结束时间"
+                    format="HH:mm"
+                    style="width: 100%"
+                  />
+                </a-form-item>
+              </a-col>
+            </a-row>
+          </div>
+        </a-form-item>
         
         <a-form-item v-if="formData.class_course_id">
           <template #label>
@@ -188,8 +230,14 @@
             <a-descriptions-item label="学生数量">
               {{ getSelectedTeachingClassStudentCount() }}名
             </a-descriptions-item>
-            <a-descriptions-item label="每小时价格">
+            <a-descriptions-item label="教学班价格">
               ¥{{ getSelectedTeachingClassPrice() }}
+            </a-descriptions-item>
+            <a-descriptions-item v-if="formData.start_time && formData.end_time" label="上课时间">
+              {{ formatTime(formData.start_time) }} - {{ formatTime(formData.end_time) }}
+              <a-tag v-if="formData.time_period_type === 'preset'" color="green" style="margin-left: 8px;">
+                {{ presetTimePeriods.find(p => p.key === formData.preset_time_period)?.name }}
+              </a-tag>
             </a-descriptions-item>
           </a-descriptions>
         </a-form-item>
@@ -358,6 +406,9 @@ export default defineComponent({
     const studentsForAttendance = ref<StudentForAttendance[]>([]);
     const currentSchedule = ref<Schedule | null>(null);
     const selectedDate = ref(moment());
+    const selectedYear = ref(moment().year());
+    const selectedMonth = ref(moment().month() + 1); // moment月份从0开始
+    const selectedDay = ref(moment().date());
     const studentSearchText = ref('');
     const selectedStudentIds = ref<number[]>([]);
     
@@ -367,6 +418,8 @@ export default defineComponent({
       date: null,
       start_time: null,
       end_time: null,
+      time_period_type: 'preset', // 'preset' or 'custom'
+      preset_time_period: 'period1', // 预设时间段
     });
     
     // 表单验证规则
@@ -384,6 +437,15 @@ export default defineComponent({
         { required: true, message: '请选择结束时间', trigger: 'change' },
       ],
     };
+    
+    // 预设时间段 - 标准学校课程安排
+    const presetTimePeriods = [
+      { key: 'period1', name: '第一节', time: '08:00 - 09:30', duration: 90 },
+      { key: 'period2', name: '第二节', time: '09:50 - 11:20', duration: 90 },
+      { key: 'period3', name: '第三节', time: '13:30 - 15:00', duration: 90 },
+      { key: 'period4', name: '第四节', time: '15:20 - 16:50', duration: 90 },
+      { key: 'period5', name: '第五节', time: '19:00 - 20:30', duration: 90 },
+    ];
     
     // 计算属性：按日期分组的课表
     const groupedSchedules = computed(() => {
@@ -448,6 +510,23 @@ export default defineComponent({
     const hasSelectedStudents = computed(() => {
       return selectedStudentIds.value.length > 0;
     });
+
+    // 可选择的年份（当前年前后1年）
+    const availableYears = computed(() => {
+      const currentYear = moment().year();
+      return [currentYear - 1, currentYear, currentYear + 1];
+    });
+
+    // 可选择的月份
+    const availableMonths = computed(() => {
+      return Array.from({ length: 12 }, (_, i) => i + 1);
+    });
+
+    // 可选择的日期（根据年月动态计算）
+    const availableDays = computed(() => {
+      const daysInMonth = moment(`${selectedYear.value}-${selectedMonth.value}`, 'YYYY-M').daysInMonth();
+      return Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    });
     
     // 考勤表格列
     const attendanceColumns = [
@@ -498,9 +577,16 @@ export default defineComponent({
       return weekdays[dateObj.getDay()];
     };
     
-    // 格式化时间（不进行时区转换）
-    const formatTime = (time: string) => {
-      // 直接从时间戳字符串中提取时间部分，避免时区转换
+    // 格式化时间（统一处理字符串和moment对象）
+    const formatTime = (time: string | moment.Moment | null) => {
+      if (!time) return '';
+      
+      // 如果是moment对象，直接格式化
+      if (moment.isMoment(time)) {
+        return time.format('HH:mm');
+      }
+      
+      // 如果是字符串，从时间戳字符串中提取时间部分，避免时区转换
       const timeStr = time.includes('T') ? time.split('T')[1] : time;
       return timeStr.split(':').slice(0, 2).join(':');
     };
@@ -549,25 +635,60 @@ export default defineComponent({
       }
       return '课程打卡';
     };
+
+    // 根据时间获取时间段名称
+    const getTimePeriodName = (startTime: string, endTime: string) => {
+      const start = formatTime(startTime);
+      const end = formatTime(endTime);
+      
+      // 查找匹配的预设时间段
+      for (const period of presetTimePeriods) {
+        const [periodStart, periodEnd] = period.time.split(' - ');
+        if (start === periodStart && end === periodEnd) {
+          return period.name;
+        }
+      }
+      
+      // 如果没有找到匹配的预设时间段，返回自定义标识
+      return '自定义';
+    };
     
-    // 日期选择变化处理
-    const handleDateChange = () => {
+    // 年月日选择器变化处理
+    const handleDateSelectChange = () => {
+      // 检查选中的日期是否超出该月的天数
+      const maxDay = moment(`${selectedYear.value}-${selectedMonth.value}`, 'YYYY-M').daysInMonth();
+      if (selectedDay.value > maxDay) {
+        selectedDay.value = maxDay;
+      }
+      
+      // 更新selectedDate
+      selectedDate.value = moment(`${selectedYear.value}-${selectedMonth.value}-${selectedDay.value}`, 'YYYY-M-D');
       loadSchedules();
+    };
+
+    // 同步selectedDate到年月日选择器
+    const syncDateToSelectors = () => {
+      selectedYear.value = selectedDate.value.year();
+      selectedMonth.value = selectedDate.value.month() + 1;
+      selectedDay.value = selectedDate.value.date();
     };
 
     // 便捷日期导航
     const goToYesterday = () => {
       selectedDate.value = selectedDate.value.clone().subtract(1, 'day');
+      syncDateToSelectors();
       loadSchedules();
     };
 
     const goToToday = () => {
       selectedDate.value = moment();
+      syncDateToSelectors();
       loadSchedules();
     };
 
     const goToTomorrow = () => {
       selectedDate.value = selectedDate.value.clone().add(1, 'day');
+      syncDateToSelectors();
       loadSchedules();
     };
     
@@ -649,7 +770,27 @@ export default defineComponent({
       formData.id = record.id;
       formData.class_course_id = record.class_course_id;
       formData.date = moment(record.date);
+      
       // 从完整的时间戳中提取时间部分
+      const startTime = formatTime(record.start_time);
+      const endTime = formatTime(record.end_time);
+      
+      // 检查是否匹配预设时间段
+      const matchedPeriod = presetTimePeriods.find(period => {
+        const [periodStart, periodEnd] = period.time.split(' - ');
+        return startTime === periodStart && endTime === periodEnd;
+      });
+      
+      if (matchedPeriod) {
+        // 匹配到预设时间段
+        formData.time_period_type = 'preset';
+        formData.preset_time_period = matchedPeriod.key;
+      } else {
+        // 自定义时间
+        formData.time_period_type = 'custom';
+        formData.preset_time_period = '';
+      }
+      
       formData.start_time = moment(record.start_time);
       formData.end_time = moment(record.end_time);
       modalVisible.value = true;
@@ -661,7 +802,27 @@ export default defineComponent({
       formData.id = undefined;
       formData.class_course_id = schedule.class_course_id;
       formData.date = moment(schedule.date).add(7, 'days'); // 默认复制到下周同一天
+      
       // 从完整的时间戳中提取时间部分
+      const startTime = formatTime(schedule.start_time);
+      const endTime = formatTime(schedule.end_time);
+      
+      // 检查是否匹配预设时间段
+      const matchedPeriod = presetTimePeriods.find(period => {
+        const [periodStart, periodEnd] = period.time.split(' - ');
+        return startTime === periodStart && endTime === periodEnd;
+      });
+      
+      if (matchedPeriod) {
+        // 匹配到预设时间段
+        formData.time_period_type = 'preset';
+        formData.preset_time_period = matchedPeriod.key;
+      } else {
+        // 自定义时间
+        formData.time_period_type = 'custom';
+        formData.preset_time_period = '';
+      }
+      
       formData.start_time = moment(schedule.start_time);
       formData.end_time = moment(schedule.end_time);
       modalVisible.value = true;
@@ -672,10 +833,52 @@ export default defineComponent({
       formData.id = undefined;
       formData.class_course_id = undefined;
       formData.date = null;
-      formData.start_time = null;
-      formData.end_time = null;
+      formData.time_period_type = 'preset';
+      formData.preset_time_period = 'period1';
+      
+      // 设置默认第一节课时间
+      const defaultPeriod = presetTimePeriods.find(p => p.key === 'period1');
+      if (defaultPeriod) {
+        const [startTime, endTime] = defaultPeriod.time.split(' - ');
+        formData.start_time = moment(startTime, 'HH:mm');
+        formData.end_time = moment(endTime, 'HH:mm');
+      } else {
+        formData.start_time = null;
+        formData.end_time = null;
+      }
+      
       if (formRef.value) {
         formRef.value.clearValidate();
+      }
+    };
+
+    // 处理时间类型变化
+    const handleTimePeriodTypeChange = (e: any) => {
+      formData.time_period_type = e.target.value;
+      if (e.target.value === 'preset') {
+        formData.preset_time_period = 'period1';
+        // 设置默认第一节课时间
+        const defaultPeriod = presetTimePeriods.find(p => p.key === 'period1');
+        if (defaultPeriod) {
+          const [startTime, endTime] = defaultPeriod.time.split(' - ');
+          formData.start_time = moment(startTime, 'HH:mm');
+          formData.end_time = moment(endTime, 'HH:mm');
+        }
+      } else {
+        // 自定义模式，清空时间
+        formData.start_time = null;
+        formData.end_time = null;
+      }
+    };
+
+    // 处理预设时间段选择变化
+    const handlePresetTimeChange = (value: string) => {
+      formData.preset_time_period = value;
+      const selectedPeriod = presetTimePeriods.find(p => p.key === value);
+      if (selectedPeriod) {
+        const [startTime, endTime] = selectedPeriod.time.split(' - ');
+        formData.start_time = moment(startTime, 'HH:mm');
+        formData.end_time = moment(endTime, 'HH:mm');
       }
     };
     
@@ -881,6 +1084,8 @@ export default defineComponent({
     };
     
     onMounted(() => {
+      // 确保初始化时年月日选择器与selectedDate同步
+      syncDateToSelectors();
       loadData();
     });
     
@@ -897,6 +1102,12 @@ export default defineComponent({
       studentsForAttendance,
       currentSchedule,
       selectedDate,
+      selectedYear,
+      selectedMonth,
+      selectedDay,
+      availableYears,
+      availableMonths,
+      availableDays,
       studentSearchText,
       selectedStudentIds,
       formData,
@@ -907,6 +1118,7 @@ export default defineComponent({
       attendanceStats,
       hasSelectedStudents,
       attendanceColumns,
+      presetTimePeriods,
       
       formatDate,
       formatDateHeader,
@@ -916,7 +1128,9 @@ export default defineComponent({
       isPastSchedule,
       canTakeAttendance,
       getAttendanceButtonText,
-      handleDateChange,
+      getTimePeriodName,
+      handleDateSelectChange,
+      syncDateToSelectors,
       goToYesterday,
       goToToday,
       goToTomorrow,
@@ -937,6 +1151,8 @@ export default defineComponent({
       selectAllStudents,
       unselectAllStudents,
       markAbsentSelected,
+      handleTimePeriodTypeChange,
+      handlePresetTimeChange,
       
       handleSubmit,
       handleCancel,
