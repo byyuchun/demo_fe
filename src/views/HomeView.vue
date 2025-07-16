@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <h1>学生管理系统</h1>
-    <h2>杨骐榕 2021080903002</h2>
+    <h2></h2>
     <a-button type="primary" shape="round" size="large" style="margin-bottom: 1em" v-if="!adminInfo.email&&!userInfo.sid"
       @click="$router.replace({name:'login'})">
       登录

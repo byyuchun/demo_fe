@@ -1038,7 +1038,7 @@ export default defineComponent({
         
         const requestData = {
           ...formData,
-          date: localDateToRFC3339(formData.date, false),
+          date: `${dateStr}T00:00:00Z`,
           start_time: localDatetimeToRFC3339(`${dateStr} ${startTimeStr}`),
           end_time: localDatetimeToRFC3339(`${dateStr} ${endTimeStr}`),
         };

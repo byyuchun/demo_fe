@@ -2,9 +2,27 @@ import axios from 'axios'
 import { message } from 'ant-design-vue'
 import storageService from '@/service/storageService'
 
+// 自动检测环境并设置API基础URL
+function getApiBaseUrl(): string {
+  const hostname = window.location.hostname;
+  
+  // 如果访问的是服务器IP，则使用服务器地址
+  if (hostname === '118.25.157.30') {
+    return 'http://118.25.157.30:9090';
+  }
+  
+  // 如果是localhost或127.0.0.1，使用本地地址
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:9090';
+  }
+  
+  // 默认使用相对路径（适用于前后端部署在同一域名下的情况）
+  return '';
+}
+
 // 创建axios实例
 const request = axios.create({
-  baseURL: 'http://localhost:9090', // 后端接口地址
+  baseURL: getApiBaseUrl(), // 自动检测环境的后端接口地址
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
